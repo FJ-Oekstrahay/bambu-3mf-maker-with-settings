@@ -77,6 +77,12 @@ SETTING_KEY_MAP = {
     # Temperature — scalar spec value written as 6-element array (one per filament slot)
     "Nozzle temperature": ("nozzle_temperature", "array"),
     "Bed temperature": ("textured_plate_temp", "array"),
+    # Abbreviated aliases used in summary tables
+    "Infill density": ("sparse_infill_density", "string"),
+    "Top shell layers": ("top_shell_layers", "string"),
+    "Elephant foot comp": ("elefant_foot_compensation", "string"),
+    "Normal accel": ("default_acceleration", "array"),
+    "Bed temp": ("textured_plate_temp", "array"),
 }
 
 # Keys we must NEVER touch regardless of what the markdown says
@@ -153,6 +159,7 @@ def parse_settings_markdown(md_path: str) -> list[dict]:
         )
 
     log.info(f"Parsed {len(rows)} ⚠️ settings from summary table in {md_path}")
+
     return rows
 
 
@@ -267,6 +274,10 @@ def apply_settings(
     for row in md_rows:
         setting_name = row["setting"].strip()
         raw_new_val = row["new_val"].strip()
+
+        # Skip rows with no new value — blank cells mean "no change"
+        if not raw_new_val:
+            continue
 
         # Look up the JSON key
         if setting_name not in SETTING_KEY_MAP:
