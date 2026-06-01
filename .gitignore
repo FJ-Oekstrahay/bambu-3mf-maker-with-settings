@@ -1,0 +1,4 @@
+*.3mf
+*.txt
+__pycache__/
+*.pyc
