@@ -278,10 +278,18 @@ def build_model_settings_new(
     object_ids: list[int],
     tri_counts: list[int],
     plate_name: str,
+    template_plate_meta: dict | None = None,
 ) -> bytes:
     """
     Build model_settings.config XML for the new objects + a single named plate.
+
+    template_plate_meta: dict of key->value from the source template's first <plate>
+    element. Used to inherit filament_maps and related slot-count values so we stay
+    compatible if the template was saved with a different AMS slot count (e.g. 32-slot
+    AMS in Bambu Studio 2.7.1.57+). If None, falls back to 6-slot defaults.
     """
+    tmpl = template_plate_meta or {}
+
     lines = ['<?xml version="1.0" encoding="UTF-8"?>']
     lines.append('<config>')
 
@@ -307,14 +315,21 @@ def build_model_settings_new(
         lines.append(f'    </part>')
         lines.append(f'  </object>')
 
+    # Inherit slot-count-dependent values from the template so we don't hardcode
+    # a 6-slot assumption. If the template was opened/saved by 2.7.1.57 with a
+    # different AMS configuration, these values will carry through correctly.
+    filament_map_mode = tmpl.get("filament_map_mode", "Auto For Flush")
+    filament_maps = tmpl.get("filament_maps", "1 1 1 1 1 1")
+    filament_volume_maps = tmpl.get("filament_volume_maps", "0 0 0 0")
+
     # Single plate
     lines.append('  <plate>')
     lines.append('    <metadata key="plater_id" value="1"/>')
     lines.append(f'    <metadata key="plater_name" value="{plate_name}"/>')
     lines.append('    <metadata key="locked" value="false"/>')
-    lines.append('    <metadata key="filament_map_mode" value="Auto For Flush"/>')
-    lines.append('    <metadata key="filament_maps" value="1 1 1 1 1 1"/>')
-    lines.append('    <metadata key="filament_volume_maps" value="0 0 0 0"/>')
+    lines.append(f'    <metadata key="filament_map_mode" value="{filament_map_mode}"/>')
+    lines.append(f'    <metadata key="filament_maps" value="{filament_maps}"/>')
+    lines.append(f'    <metadata key="filament_volume_maps" value="{filament_volume_maps}"/>')
     lines.append('    <metadata key="thumbnail_file" value="Metadata/plate_1.png"/>')
     lines.append('    <metadata key="thumbnail_no_light_file" value="Metadata/plate_no_light_1.png"/>')
     lines.append('    <metadata key="top_file" value="Metadata/top_1.png"/>')
@@ -455,6 +470,23 @@ def build_stl_3mf(
         src_settings = json.loads(tmpl.read("Metadata/project_settings.config"))
         assert isinstance(src_settings, dict), "Template project_settings.config is not a dict"
 
+        # Read template plate metadata (filament_maps, filament_map_mode, etc.)
+        # so we can inherit slot-count-dependent values rather than hardcoding them.
+        template_plate_meta: dict = {}
+        try:
+            from xml.etree import ElementTree as _ET
+            _ms_xml = tmpl.read("Metadata/model_settings.config")
+            _ms_root = _ET.fromstring(_ms_xml)
+            for _plate in _ms_root.iter("plate"):
+                for _m in _plate.iter("metadata"):
+                    _k = _m.get("key")
+                    _v = _m.get("value")
+                    if _k and _v is not None:
+                        template_plate_meta[_k] = _v
+                break  # only need first plate
+        except Exception as _e:
+            log.warning(f"Could not read template plate metadata: {_e} — using defaults")
+
         # Files to copy verbatim
         verbatim_files = {
             "[Content_Types].xml",
@@ -496,7 +528,10 @@ def build_stl_3mf(
 
     # --- Generate model_settings.config ---
     log.info("Generating model_settings.config...")
-    model_settings_xml = build_model_settings_new(stl_names, object_ids, tri_counts, plate_name)
+    model_settings_xml = build_model_settings_new(
+        stl_names, object_ids, tri_counts, plate_name,
+        template_plate_meta=template_plate_meta,
+    )
 
     # --- Build minimal _rels/.rels (no thumbnail refs to files we don't include) ---
     rels_xml = (
@@ -879,9 +914,14 @@ def parse_args(argv=None):
 
     args = parser.parse_args(argv)
 
+    # --print-template exits before STL validation — return early here so main()
+    # can handle it cleanly without crashing on missing --stl.
+    if args.print_template:
+        return args
+
     # Expand comma-separated STL paths
     stl_paths = []
-    for entry in args.stl:
+    for entry in (args.stl or []):
         for part in entry.split(","):
             part = part.strip()
             if part:

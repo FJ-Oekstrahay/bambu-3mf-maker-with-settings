@@ -1,5 +1,5 @@
 # [Part Name] — [Material] Print Settings
-## Bambu A1 Mini · Bambu Studio 2.7.x
+## Bambu A1 Mini · Bambu Studio 2.7.x (tested 2.7.0.50 beta / 2.7.1.57 public)
 
 ---
 
@@ -85,7 +85,7 @@
 
 | Setting | Value | Notes |
 |---|---|---|
-| Sparse infill density | | e.g. 10% flex toys; 15–20% general; 40%+ structural |
+| Sparse infill density | | e.g. 10% flex toys; 15–20% general; 40%+ structural (alias: "Infill density") |
 | Sparse infill pattern | | grid / gyroid / honeycomb / lightning / etc. (use lowercase enum values) |
 | Length of sparse infill anchor | | default 400% |
 
@@ -112,6 +112,7 @@
 | Top surface | | e.g. 80–100 mm/s |
 | Bridge | | e.g. 100–150 mm/s |
 | Gap infill | | e.g. 80–100 mm/s |
+| Support interface | | e.g. 80–100 mm/s (maps to support_interface_speed) |
 
 ### Travel Speed
 
@@ -123,13 +124,13 @@
 
 | Setting | Value | Notes |
 |---|---|---|
-| Normal printing | | e.g. 2000–5000 mm/s² (maps to default_acceleration) |
-| Travel | | e.g. 5000–10000 mm/s² (maps to travel_acceleration) |
-| Initial layer accel | | e.g. 300–500 mm/s² (maps to initial_layer_acceleration) |
-| Outer wall accel | | e.g. 1000–2000 mm/s² (maps to outer_wall_acceleration) |
-| Top surface accel | | e.g. 1000–2000 mm/s² (maps to top_surface_acceleration) |
-| Inner wall accel | | 0 for auto (maps to inner_wall_acceleration) |
-| Initial layer travel | | e.g. 1500–2000 mm/s² (maps to initial_layer_travel_acceleration) |
+| Normal printing | | e.g. 2000–5000 mm/s² (maps to default_acceleration; aliases: "Normal accel", "Normal printing accel") |
+| Travel | | e.g. 5000–10000 mm/s² (maps to travel_acceleration; alias: "Travel accel") |
+| Initial layer accel | | e.g. 300–500 mm/s² (maps to initial_layer_acceleration; alias: "Initial layer") |
+| Outer wall accel | | e.g. 1000–2000 mm/s² (maps to outer_wall_acceleration; alias: "Outer wall acceleration") |
+| Top surface accel | | e.g. 1000–2000 mm/s² (maps to top_surface_acceleration; alias: "Top surface acceleration") |
+| Inner wall accel | | 0 for auto (maps to inner_wall_acceleration; alias: "Inner wall acceleration") |
+| Initial layer travel | | e.g. 1500–2000 mm/s² (maps to initial_layer_travel_acceleration; alias: "Initial layer travel accel") |
 
 ---
 
@@ -188,7 +189,7 @@
 |---|---|---|
 | Nozzle temperature | | e.g. 220 PLA / 230 TPU / 265 PETG-CF |
 | Bed temperature | | e.g. 55 PLA / 35 TPU / 70 PETG-CF |
-| Retraction distance | | e.g. 0.8 mm direct drive; max 1.0 mm for TPU |
+| Retraction distance | | e.g. 0.8 mm direct drive; max 1.0 mm for TPU (alias: "Retraction length") |
 | Retraction speed | | e.g. 25–40 mm/s |
 | Max volumetric speed | | e.g. 6–8 mm³/s; lower = better surface quality |
 | Wipe on layer change | | ☑ or ☐ |

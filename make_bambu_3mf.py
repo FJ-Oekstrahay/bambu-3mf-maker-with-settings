@@ -593,6 +593,10 @@ def build_model_settings(
         add_meta("plater_name", "")
         add_meta("locked", "false")
         add_meta("filament_map_mode", orig_plate_meta.get("filament_map_mode", "Auto For Flush"))
+        # filament_maps: read from the source template — space-separated slot indices.
+        # Default "1 1 1 1 1 1" matches the 6-slot A1 mini AMS Lite; if the template was
+        # saved by 2.7.1.57 with a different slot count, orig_plate_meta will have the
+        # correct value. Do NOT hardcode slot count here.
         add_meta("filament_maps", orig_plate_meta.get("filament_maps", "1 1 1 1 1 1"))
         add_meta("filament_volume_maps", orig_plate_meta.get("filament_volume_maps", "0 0 0 0"))
         add_meta("thumbnail_file", f"Metadata/plate_{plate_num}.png")
