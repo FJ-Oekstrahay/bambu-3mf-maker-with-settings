@@ -5,6 +5,10 @@ Two Python CLI tools for generating Bambu Studio `.3mf` files with process setti
 - **`stl_to_bambu_3mf.py`** — the everyday tool. Give it an STL and a settings markdown file, get a ready-to-open `.3mf`.
 - **`make_bambu_3mf.py`** — lower-level. Patches an existing `.3mf` with per-plate settings, supports multi-material plates.
 
+## Why this exists
+
+You have STLs you want to print — downloaded drone parts, toys, fidgets for the kids. Bambu Studio has dozens of settings and it's overwhelming if you're not a 3D printing expert. This lets you describe the part to an LLM (what it is, what material, what it needs to do), get a filled settings file back, run one command, and open the `.3mf` in Bambu Studio and hit print. No CAD knowledge required. You bring the STL and tell the LLM what the part does; the scripts handle the rest.
+
 ## Requirements
 
 - Python 3.8+
