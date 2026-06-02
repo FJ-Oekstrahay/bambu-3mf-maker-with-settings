@@ -123,13 +123,13 @@
 
 | Setting | Value | Notes |
 |---|---|---|
-| Normal printing | | e.g. 2000–5000 mm/s² |
-| Travel | | e.g. 5000–10000 mm/s² |
-| Initial layer | | e.g. 300–500 mm/s² |
-| Outer wall | | e.g. 1000–2000 mm/s² |
-| Top surface | | e.g. 1000–2000 mm/s² |
-| Inner wall | | 0 for auto |
-| Initial layer travel | | e.g. 1500–2000 mm/s² |
+| Normal printing | | e.g. 2000–5000 mm/s² (maps to default_acceleration) |
+| Travel | | e.g. 5000–10000 mm/s² (maps to travel_acceleration) |
+| Initial layer | | e.g. 300–500 mm/s² (maps to initial_layer_acceleration) |
+| Outer wall | | e.g. 1000–2000 mm/s² (maps to outer_wall_acceleration) |
+| Top surface | | e.g. 1000–2000 mm/s² (maps to top_surface_acceleration) |
+| Inner wall accel | | 0 for auto (maps to inner_wall_acceleration) |
+| Initial layer travel | | e.g. 1500–2000 mm/s² (maps to initial_layer_travel_acceleration) |
 
 ---
 
@@ -138,9 +138,10 @@
 | Setting | Value | Notes |
 |---|---|---|
 | Enable support | | ☑ or ☐ |
-| Support type | | Normal / Tree |
+| Support type | | normal / tree |
 | Threshold angle | | e.g. 40–55° |
 | Support on build plate only | | ☑ or ☐ |
+| Support threshold angle | | alias for Threshold angle |
 
 ### Raft
 
@@ -158,7 +159,7 @@
 |---|---|---|
 | Skirt loops | | e.g. 2 general; 3+ for TPU flow priming |
 | Skirt height | | e.g. 1 layer |
-| Brim type | | None / Auto / Outer / Inner |
+| Brim type | | None / Auto / Outer / Inner (stored as: no_brim / auto_brim / outer_brim / inner_brim) |
 | Brim width | | e.g. 5 mm |
 | Brim-object gap | | e.g. 0.1 mm |
 
@@ -172,10 +173,10 @@
 
 | Setting | Value | Notes |
 |---|---|---|
-| Print sequence | | By layer / By object |
-| Slicing mode | | Regular / Even-odd |
+| Print sequence | | by_layer / by_object |
+| Slicing mode | | regular / even-odd |
 | Spiral vase | | ☑ or ☐ |
-| Fuzzy skin | | None / Contour / All walls |
+| Fuzzy skin | | none / contour / all_walls |
 
 ---
 

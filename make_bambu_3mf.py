@@ -39,16 +39,33 @@ SETTING_KEY_MAP = {
     "Elephant foot compensation": ("elefant_foot_compensation", "string"),
     "Bridge flow": ("bridge_flow", "string"),
     "Avoid crossing wall": ("reduce_crossing_wall", "integer"),
+    "Layer height": ("layer_height", "string"),
+    "Initial layer height": ("initial_layer_print_height", "string"),
+    "Seam position": ("seam_position", "string"),
+    "Arc fitting": ("enable_arc_fitting", "string"),
+    "X-Y hole compensation": ("xy_hole_compensation", "string"),
+    "Ironing type": ("ironing_type", "string"),
+    "Order of walls": ("wall_sequence", "string"),
+    "Print infill first": ("is_infill_first", "string"),
+    "Resolution": ("resolution", "string"),
+    "Slice gap closing radius": ("slice_closing_radius", "string"),
     # Strength
     "Wall loops": ("wall_loops", "string"),
     "Detect thin wall": ("detect_thin_wall", "string"),
     "Bottom shell layers": ("bottom_shell_layers", "string"),
+    "Bottom shell thickness": ("bottom_shell_thickness", "string"),
+    "Top shell thickness": ("top_shell_thickness", "string"),
+    "Top surface pattern": ("top_surface_pattern", "string"),
+    "Bottom surface pattern": ("bottom_surface_pattern", "string"),
     "Sparse infill density": ("sparse_infill_density", "string"),
     "Sparse infill pattern": ("sparse_infill_pattern", "string"),
+    "Length of sparse infill anchor": ("sparse_infill_anchor", "string"),
     # Speed — single-element array of strings
+    "Initial layer speed": ("initial_layer_speed", "array"),
     "Initial layer infill": ("initial_layer_infill_speed", "array"),
     "Outer wall": ("outer_wall_speed", "array"),
     "Inner wall": ("inner_wall_speed", "array"),
+    "Small perimeters": ("small_perimeter_speed", "array"),
     "Sparse infill": ("sparse_infill_speed", "array"),
     "Internal solid infill": ("internal_solid_infill_speed", "array"),
     "Top surface": ("top_surface_speed", "array"),
@@ -56,6 +73,7 @@ SETTING_KEY_MAP = {
     "Gap infill": ("gap_infill_speed", "array"),
     "Support": ("support_speed", "array"),
     "Support interface": ("support_interface_speed", "array"),
+    "Initial layer": ("initial_layer_acceleration", "array"),
     # Acceleration — single-element array of strings
     "Normal printing": ("default_acceleration", "array"),
     "Normal printing accel": ("default_acceleration", "array"),
@@ -64,16 +82,38 @@ SETTING_KEY_MAP = {
     "Initial layer travel accel": ("initial_layer_travel_acceleration", "array"),
     "Initial layer travel": ("initial_layer_travel_acceleration", "array"),
     "Initial layer accel": ("initial_layer_acceleration", "array"),
-    "Initial layer": ("initial_layer_acceleration", "array"),
     "Outer wall accel": ("outer_wall_acceleration", "array"),
     "Outer wall acceleration": ("outer_wall_acceleration", "array"),
     "Top surface accel": ("top_surface_acceleration", "array"),
     "Top surface acceleration": ("top_surface_acceleration", "array"),
-    # Others
+    "Inner wall accel": ("inner_wall_acceleration", "array"),
+    "Inner wall acceleration": ("inner_wall_acceleration", "array"),
+    # Others — Bed adhesion
     "Skirt loops": ("skirt_loops", "string"),
+    "Skirt height": ("skirt_height", "string"),
+    "Brim type": ("brim_type", "string"),
+    "Brim width": ("brim_width", "string"),
+    "Brim-object gap": ("brim_object_gap", "string"),
+    # Others — Prime tower
     "Enable prime tower": ("enable_prime_tower", "string"),
     "Enable": ("enable_prime_tower", "string"),  # "Enable" in Prime Tower section
     "Prime tower": ("enable_prime_tower", "string"),  # fallback alias
+    # Others — Special mode
+    "Print sequence": ("print_sequence", "string"),
+    "Slicing mode": ("slicing_mode", "string"),
+    "Spiral vase": ("spiral_mode", "string"),
+    "Fuzzy skin": ("fuzzy_skin", "string"),
+    # Support
+    "Enable support": ("enable_support", "string"),
+    "Support type": ("support_type", "string"),
+    "Threshold angle": ("support_threshold_angle", "string"),
+    "Support threshold angle": ("support_threshold_angle", "string"),
+    "Support on build plate only": ("support_on_build_plate_only", "string"),
+    "Raft layers": ("raft_layers", "string"),
+    # Retraction (filament-tab but sometimes referenced in process docs)
+    "Retraction length": ("retraction_length", "string"),
+    "Retraction speed": ("retraction_speed", "string"),
+    "Retraction distance": ("retraction_length", "string"),
     # Temperature — scalar spec value written as 6-element array (one per filament slot)
     "Nozzle temperature": ("nozzle_temperature", "array"),
     "Bed temperature": ("textured_plate_temp", "array"),
@@ -83,6 +123,8 @@ SETTING_KEY_MAP = {
     "Elephant foot comp": ("elefant_foot_compensation", "string"),
     "Normal accel": ("default_acceleration", "array"),
     "Bed temp": ("textured_plate_temp", "array"),
+    "Nozzle temp": ("nozzle_temperature", "array"),
+    "Brim": ("brim_type", "string"),
 }
 
 # Keys we must NEVER touch regardless of what the markdown says
@@ -280,22 +322,47 @@ def apply_settings(
             continue
 
         # Look up the JSON key
-        if setting_name not in SETTING_KEY_MAP:
-            log.warning(
-                f"[{material_name}] Unknown setting '{setting_name}' — no key in lookup table, SKIPPED"
-            )
-            report.append(
-                {
-                    "human_name": setting_name,
-                    "json_key": "N/A",
-                    "old_value": "N/A",
-                    "new_value": raw_new_val,
-                    "status": "SKIPPED (not in lookup table)",
-                }
-            )
-            continue
+        if setting_name in SETTING_KEY_MAP:
+            json_key, key_type = SETTING_KEY_MAP[setting_name]
+        else:
+            # Fallback: normalize the setting name directly to a candidate config key
+            # lowercase, replace spaces/hyphens with underscores, strip trailing
+            # unit annotations like "(mm)", "(°C)", colons, etc.
+            normalized = setting_name.lower().strip()
+            normalized = re.sub(r"\s*\(.*?\)\s*$", "", normalized)  # strip "(mm)", "(°C)"
+            normalized = re.sub(r":$", "", normalized)              # strip trailing colon
+            normalized = re.sub(r"[\s\-]+", "_", normalized)        # spaces/hyphens → _
+            normalized = re.sub(r"[^\w]", "", normalized)            # drop remaining non-word chars
 
-        json_key, key_type = SETTING_KEY_MAP[setting_name]
+            if normalized in out:
+                # Infer type from the current value in the settings dict
+                existing = out[normalized]
+                if isinstance(existing, list):
+                    key_type = "array"
+                elif isinstance(existing, int) and not isinstance(existing, bool):
+                    key_type = "integer"
+                else:
+                    key_type = "string"
+                json_key = normalized
+                log.info(
+                    f"[{material_name}] '{setting_name}' not in lookup table — "
+                    f"resolved via normalization to '{json_key}'"
+                )
+            else:
+                log.warning(
+                    f"[{material_name}] Unknown setting '{setting_name}' — "
+                    f"not in lookup table and normalized key '{normalized}' not found in config, SKIPPED"
+                )
+                report.append(
+                    {
+                        "human_name": setting_name,
+                        "json_key": "N/A",
+                        "old_value": "N/A",
+                        "new_value": raw_new_val,
+                        "status": "SKIPPED (not in lookup table)",
+                    }
+                )
+                continue
 
         # Never touch forbidden keys
         if is_forbidden_key(json_key):
