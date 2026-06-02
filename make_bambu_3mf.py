@@ -61,6 +61,9 @@ SETTING_KEY_MAP = {
     "Sparse infill density": ("sparse_infill_density", "string"),
     "Sparse infill pattern": ("sparse_infill_pattern", "string"),
     "Length of sparse infill anchor": ("sparse_infill_anchor", "string"),
+    "Skin infill density": ("skin_infill_density", "string"),
+    "Skeleton infill density": ("skeleton_infill_density", "string"),
+    "Skin infill depth": ("skin_infill_depth", "string"),
     # Speed — single-element array of strings
     "Travel speed": ("travel_speed", "array"),
     "Initial layer speed": ("initial_layer_speed", "array"),

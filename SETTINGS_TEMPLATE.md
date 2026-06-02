@@ -88,6 +88,9 @@
 | Sparse infill density | | e.g. 10% flex toys; 15–20% general; 40%+ structural (alias: "Infill density") |
 | Sparse infill pattern | | grid / gyroid / honeycomb / lightning / etc. (use lowercase enum values) |
 | Length of sparse infill anchor | | default 400% |
+| Skin infill density | | 0% for hollow; 15% default — fills near-surface zones (Bambu 2.7.x) |
+| Skeleton infill density | | 0% for hollow; 15% default — internal structure (Bambu 2.7.x) |
+| Skin infill depth | | 0 for hollow; 2 default — mm depth of skin infill from surfaces (Bambu 2.7.x) |
 
 ---
 
