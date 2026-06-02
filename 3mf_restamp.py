@@ -242,14 +242,15 @@ def restamp_3mf(
 
         all_report = process_report + filament_report
 
-        # Force default_print_profile to "Custom" so Studio displays our values
-        # instead of looking up a named system profile.
-        if updated_settings.get('default_print_profile') != 'Custom':
-            log.info(
-                f"Setting default_print_profile → Custom "
-                f"(was: {updated_settings.get('default_print_profile')})"
-            )
-            updated_settings['default_print_profile'] = 'Custom'
+        # Force both profile keys to "Custom" so Studio doesn't load the named
+        # system profile and override our embedded settings with its defaults.
+        for profile_key in ('default_print_profile', 'print_settings_id'):
+            if updated_settings.get(profile_key) != 'Custom':
+                log.info(
+                    f"Setting {profile_key} → Custom "
+                    f"(was: {updated_settings.get(profile_key)})"
+                )
+                updated_settings[profile_key] = 'Custom'
 
         # Validate applied settings
         validation_warnings = validate_settings(updated_settings, "restamp")
