@@ -86,7 +86,7 @@
 | Setting | Value | Notes |
 |---|---|---|
 | Sparse infill density | | e.g. 10% flex toys; 15–20% general; 40%+ structural |
-| Sparse infill pattern | | Grid / Gyroid / Honeycomb / Lightning / etc. |
+| Sparse infill pattern | | grid / gyroid / honeycomb / lightning / etc. (use lowercase enum values) |
 | Length of sparse infill anchor | | default 400% |
 
 ---
@@ -159,7 +159,7 @@
 |---|---|---|
 | Skirt loops | | e.g. 2 general; 3+ for TPU flow priming |
 | Skirt height | | e.g. 1 layer |
-| Brim type | | None / Auto / Outer / Inner (stored as: no_brim / auto_brim / outer_brim / inner_brim) |
+| Brim type | | None / Auto / Outer / Inner (stored as: no_brim / auto_brim / outer_only / inner_only) |
 | Brim width | | e.g. 5 mm |
 | Brim-object gap | | e.g. 0.1 mm |
 
