@@ -97,7 +97,7 @@
 
 | Setting | Value | Notes |
 |---|---|---|
-| Initial layer | | e.g. 15–20 mm/s; lower for TPU |
+| Initial layer speed | | e.g. 15–20 mm/s; lower for TPU |
 | Initial layer infill | | e.g. 25–30 mm/s |
 
 ### Other Layer Speeds
@@ -117,7 +117,7 @@
 
 | Setting | Value |
 |---|---|
-| Travel | |
+| Travel speed | |
 
 ### Acceleration
 
@@ -125,9 +125,9 @@
 |---|---|---|
 | Normal printing | | e.g. 2000–5000 mm/s² (maps to default_acceleration) |
 | Travel | | e.g. 5000–10000 mm/s² (maps to travel_acceleration) |
-| Initial layer | | e.g. 300–500 mm/s² (maps to initial_layer_acceleration) |
-| Outer wall | | e.g. 1000–2000 mm/s² (maps to outer_wall_acceleration) |
-| Top surface | | e.g. 1000–2000 mm/s² (maps to top_surface_acceleration) |
+| Initial layer accel | | e.g. 300–500 mm/s² (maps to initial_layer_acceleration) |
+| Outer wall accel | | e.g. 1000–2000 mm/s² (maps to outer_wall_acceleration) |
+| Top surface accel | | e.g. 1000–2000 mm/s² (maps to top_surface_acceleration) |
 | Inner wall accel | | 0 for auto (maps to inner_wall_acceleration) |
 | Initial layer travel | | e.g. 1500–2000 mm/s² (maps to initial_layer_travel_acceleration) |
 

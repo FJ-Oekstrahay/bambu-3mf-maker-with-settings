@@ -15,7 +15,9 @@ CLI:
 __version__ = "1.0.0"
 
 import argparse
+import copy
 import json
+import subprocess
 import sys
 import zipfile
 from io import BytesIO
@@ -26,7 +28,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from make_bambu_3mf import (
     SETTING_KEY_MAP,
     apply_settings,
+    load_preset,
     parse_settings_markdown,
+    validate_settings,
 )
 
 import logging
@@ -127,10 +131,17 @@ def apply_filament_settings(
 # ---------------------------------------------------------------------------
 # Core restamp function
 # ---------------------------------------------------------------------------
-def restamp_3mf(input_path: str, settings_md: str, output_path: str) -> list[dict]:
+def restamp_3mf(
+    input_path: str,
+    settings_md: str,
+    output_path: str,
+    preset_rows: list[dict] | None = None,
+) -> tuple[list[dict], dict, dict]:
     """
     Open source 3mf, apply settings from markdown, write new 3mf.
-    Returns combined report rows for all applied/skipped settings.
+    Returns (report_rows, src_settings, updated_settings).
+
+    preset_rows: optional preset settings to apply before md file rows.
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -165,6 +176,11 @@ def restamp_3mf(input_path: str, settings_md: str, output_path: str) -> list[dic
         md_rows = parse_settings_markdown(settings_md)
         log.info(f"Parsed {len(md_rows)} rows from settings markdown")
 
+        # Prepend preset rows so explicit settings override preset
+        if preset_rows:
+            log.info(f"Merging {len(preset_rows)} preset rows (overridden by explicit settings)")
+            md_rows = preset_rows + md_rows
+
         # Split filament vs process rows
         process_rows, filament_rows = extract_filament_settings(md_rows)
 
@@ -179,6 +195,11 @@ def restamp_3mf(input_path: str, settings_md: str, output_path: str) -> list[dic
         )
 
         all_report = process_report + filament_report
+
+        # Validate applied settings
+        validation_warnings = validate_settings(updated_settings, "restamp")
+        for w in validation_warnings:
+            log.warning(f"Validation: {w}")
 
         # Serialize updated config
         updated_config_bytes = json.dumps(updated_settings, indent=2).encode("utf-8")
@@ -207,7 +228,105 @@ def restamp_3mf(input_path: str, settings_md: str, output_path: str) -> list[dic
         f.write(out_buf.getvalue())
 
     log.info(f"Written: {output_path}")
-    return all_report
+    return all_report, src_settings, updated_settings
+
+
+# ---------------------------------------------------------------------------
+# Diff printer
+# ---------------------------------------------------------------------------
+def print_diff(src_settings: dict, updated_settings: dict) -> None:
+    """Print a table of keys that actually changed between src and updated config."""
+    changed = {}
+    all_keys = set(src_settings.keys()) | set(updated_settings.keys())
+    for key in sorted(all_keys):
+        before = src_settings.get(key, "<missing>")
+        after = updated_settings.get(key, "<missing>")
+        if before != after:
+            changed[key] = (before, after)
+
+    if not changed:
+        print("ACTUAL CONFIG DIFF: no keys changed")
+        return
+
+    print()
+    print("ACTUAL CONFIG DIFF (keys that changed)")
+    print("-" * 72)
+    print(f"  {'Key':<38} {'Before':<20} {'After'}")
+    print("-" * 72)
+    for key, (before, after) in changed.items():
+        before_str = str(before)[:19]
+        after_str = str(after)[:19]
+        print(f"  {key[:37]:<38} {before_str:<20} {after_str}")
+    print()
+
+
+# ---------------------------------------------------------------------------
+# Slice preview via BambuStudio CLI
+# ---------------------------------------------------------------------------
+BAMBU_STUDIO_BIN = "/Applications/BambuStudio.app/Contents/MacOS/BambuStudio"
+
+
+def run_slice_preview(output_3mf_path: str) -> None:
+    """Run BambuStudio --slice on the output file and print slice stats."""
+    bin_path = Path(BAMBU_STUDIO_BIN)
+    if not bin_path.exists():
+        log.warning(f"BambuStudio binary not found at {BAMBU_STUDIO_BIN} — skipping slice preview")
+        return
+
+    log.info(f"Running slice preview: {BAMBU_STUDIO_BIN} --slice {output_3mf_path}")
+    try:
+        result = subprocess.run(
+            [str(bin_path), "--slice", output_3mf_path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        log.warning("Slice preview timed out after 120s")
+        return
+    except Exception as e:
+        log.warning(f"Slice preview failed: {e}")
+        return
+
+    output = (result.stdout or "") + (result.stderr or "")
+
+    print()
+    print("SLICE PREVIEW")
+    print("-" * 72)
+
+    # Try to extract useful stats
+    layer_match = None
+    time_match = None
+    filament_match = None
+
+    import re
+    for line in output.splitlines():
+        if not layer_match and re.search(r"layer[s]?\s*[:=]?\s*(\d+)", line, re.IGNORECASE):
+            layer_match = line.strip()
+        if not time_match and re.search(r"(print\s+time|estimated|time\s*[:=])", line, re.IGNORECASE):
+            time_match = line.strip()
+        if not filament_match and re.search(r"(filament|material)\s*[:=]?\s*[\d.]+", line, re.IGNORECASE):
+            filament_match = line.strip()
+
+    if layer_match or time_match or filament_match:
+        if layer_match:
+            print(f"  Layers:   {layer_match}")
+        if time_match:
+            print(f"  Time:     {time_match}")
+        if filament_match:
+            print(f"  Filament: {filament_match}")
+    else:
+        # Fall back to raw output, truncated
+        lines = output.splitlines()
+        print(f"  (raw output — could not parse stats)")
+        for line in lines[:40]:
+            print(f"  {line}")
+        if len(lines) > 40:
+            print(f"  ... ({len(lines) - 40} more lines)")
+
+    if result.returncode != 0:
+        print(f"  [exit code {result.returncode}]")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +395,23 @@ def parse_args(argv=None):
         default=None,
         help="Output .3mf path (default: <input_stem>_restamped.3mf in same directory).",
     )
+    parser.add_argument(
+        "--preset",
+        default=None,
+        help="Preset name to load from presets/<name>.md (applied before --settings, overridden by it).",
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        default=False,
+        help="Print a diff table of config keys that actually changed.",
+    )
+    parser.add_argument(
+        "--slice-preview",
+        action="store_true",
+        default=False,
+        help="Run BambuStudio CLI to slice the output file and print layer/time/filament stats.",
+    )
     return parser.parse_args(argv)
 
 
@@ -297,8 +433,21 @@ def main(argv=None):
     else:
         output_path = input_path.parent / f"{input_path.stem}_restamped.3mf"
 
-    report_rows = restamp_3mf(str(input_path), str(settings_path), str(output_path))
+    # Load preset if specified
+    preset_rows = None
+    if args.preset:
+        preset_rows = load_preset(args.preset)
+
+    report_rows, src_settings, updated_settings = restamp_3mf(
+        str(input_path), str(settings_path), str(output_path), preset_rows=preset_rows
+    )
     print_report(report_rows, str(input_path), str(output_path))
+
+    if args.diff:
+        print_diff(src_settings, updated_settings)
+
+    if args.slice_preview:
+        run_slice_preview(str(output_path))
 
 
 if __name__ == "__main__":

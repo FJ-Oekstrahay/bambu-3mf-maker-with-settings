@@ -19,6 +19,7 @@ __version__ = "1.0.0"
 
 import argparse
 import copy
+import difflib
 import json
 import logging
 import re
@@ -61,6 +62,7 @@ SETTING_KEY_MAP = {
     "Sparse infill pattern": ("sparse_infill_pattern", "string"),
     "Length of sparse infill anchor": ("sparse_infill_anchor", "string"),
     # Speed — single-element array of strings
+    "Travel speed": ("travel_speed", "array"),
     "Initial layer speed": ("initial_layer_speed", "array"),
     "Initial layer infill": ("initial_layer_infill_speed", "array"),
     "Outer wall": ("outer_wall_speed", "array"),
@@ -349,10 +351,21 @@ def apply_settings(
                     f"resolved via normalization to '{json_key}'"
                 )
             else:
-                log.warning(
-                    f"[{material_name}] Unknown setting '{setting_name}' — "
-                    f"not in lookup table and normalized key '{normalized}' not found in config, SKIPPED"
+                suggestions = difflib.get_close_matches(
+                    normalized,
+                    list(SETTING_KEY_MAP.keys()) + list(out.keys()),
+                    n=3,
+                    cutoff=0.6,
                 )
+                if suggestions:
+                    log.warning(
+                        f"[{material_name}] Unknown setting '{setting_name}' — did you mean: {suggestions}?"
+                    )
+                else:
+                    log.warning(
+                        f"[{material_name}] Unknown setting '{setting_name}' — "
+                        f"not in lookup table and normalized key '{normalized}' not found in config, SKIPPED"
+                    )
                 report.append(
                     {
                         "human_name": setting_name,
@@ -429,6 +442,84 @@ def apply_settings(
         out["travel_speed"] = source_settings.get("travel_speed", ["700"])
 
     return out, report
+
+
+# ---------------------------------------------------------------------------
+# Preset loader
+# ---------------------------------------------------------------------------
+def load_preset(preset_name: str) -> list[dict]:
+    """
+    Load preset rows from presets/<preset_name>.md relative to this script's directory.
+    Returns parsed md_rows (same format as parse_settings_markdown).
+    """
+    script_dir = Path(__file__).parent
+    preset_path = script_dir / "presets" / f"{preset_name}.md"
+    if not preset_path.exists():
+        log.error(f"Preset '{preset_name}' not found at {preset_path}")
+        sys.exit(1)
+    log.info(f"Loading preset: {preset_path}")
+    return parse_settings_markdown(str(preset_path))
+
+
+# ---------------------------------------------------------------------------
+# Settings validation
+# ---------------------------------------------------------------------------
+def validate_settings(settings_dict: dict, material_name: str = "") -> list[str]:
+    """
+    Check settings_dict for common misconfigurations.
+    Returns a list of warning strings (empty if all OK).
+    """
+    warnings = []
+
+    # 1. Hollow shell (0% infill) with only 1 wall loop — will be very fragile
+    density_raw = settings_dict.get("sparse_infill_density", "")
+    if isinstance(density_raw, list):
+        density_raw = density_raw[0] if density_raw else ""
+    density_str = str(density_raw).strip().rstrip("%").strip()
+    try:
+        density_val = float(density_str)
+    except (ValueError, TypeError):
+        density_val = None
+
+    wall_loops_raw = settings_dict.get("wall_loops", "")
+    if isinstance(wall_loops_raw, list):
+        wall_loops_raw = wall_loops_raw[0] if wall_loops_raw else ""
+    try:
+        wall_loops_val = int(str(wall_loops_raw).strip())
+    except (ValueError, TypeError):
+        wall_loops_val = None
+
+    if density_val is not None and density_val == 0 and wall_loops_val is not None and wall_loops_val <= 1:
+        warnings.append(
+            "hollow shell with only 1 wall loop will be fragile — "
+            "consider adding more wall loops (wall_loops >= 2)"
+        )
+
+    # 2. Speed > 200 mm/s with TPU material
+    if material_name and "tpu" in material_name.lower():
+        speed_keys = [
+            "outer_wall_speed", "inner_wall_speed", "sparse_infill_speed",
+            "internal_solid_infill_speed", "top_surface_speed", "bridge_speed",
+            "gap_infill_speed",
+        ]
+        for key in speed_keys:
+            val = settings_dict.get(key)
+            if val is None:
+                continue
+            if isinstance(val, list):
+                val = val[0] if val else None
+            if val is None:
+                continue
+            try:
+                speed_val = float(str(val).strip())
+                if speed_val > 200:
+                    warnings.append(
+                        f"speed > 200 mm/s ({key}={speed_val}) with TPU may cause under-extrusion or jams"
+                    )
+            except (ValueError, TypeError):
+                pass
+
+    return warnings
 
 
 # ---------------------------------------------------------------------------
@@ -578,6 +669,12 @@ def build_3mf(
         log.info(f"Plate {plate_num} ({material}): parsing {md_path}")
         md_rows = parse_settings_markdown(md_path)
 
+        # Prepend preset rows so explicit settings override preset values
+        preset_rows = plate.get("preset_rows", [])
+        if preset_rows:
+            log.info(f"Plate {plate_num}: merging {len(preset_rows)} preset rows (overridden by explicit settings)")
+            md_rows = preset_rows + md_rows
+
         plate_settings, report = apply_settings(
             src_settings, md_rows, material, src_settings
         )
@@ -585,6 +682,11 @@ def build_3mf(
         all_report_rows.extend(
             [{"plate": plate_num, "material": material, **r} for r in report]
         )
+
+        # Validate applied settings
+        validation_warnings = validate_settings(plate_settings, material)
+        for w in validation_warnings:
+            log.warning(f"[Plate {plate_num} / {material}] Validation: {w}")
 
     # Build model_settings.config
     new_model_settings_bytes = build_model_settings(
@@ -931,6 +1033,7 @@ def parse_args(argv=None):
             material = None
             objects = None
             settings_md = None
+            preset_name = None
             while i < len(remaining) and remaining[i] not in ("--plate", "--source", "--output"):
                 if remaining[i] == "--material":
                     material = remaining[i + 1]
@@ -941,16 +1044,20 @@ def parse_args(argv=None):
                 elif remaining[i] == "--settings":
                     settings_md = remaining[i + 1]
                     i += 2
+                elif remaining[i] == "--preset":
+                    preset_name = remaining[i + 1]
+                    i += 2
                 else:
                     i += 1
-            plates.append(
-                {
-                    "plate_num": plate_num,
-                    "material": material,
-                    "objects": objects,
-                    "settings_md": settings_md,
-                }
-            )
+            plate_entry = {
+                "plate_num": plate_num,
+                "material": material,
+                "objects": objects,
+                "settings_md": settings_md,
+            }
+            if preset_name:
+                plate_entry["preset_rows"] = load_preset(preset_name)
+            plates.append(plate_entry)
         else:
             i += 1
 
