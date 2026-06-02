@@ -204,8 +204,10 @@
 
 | Tab | Setting | Default | Value | Notes |
 |---|---|---|---|---|
+| Filament | Nozzle temperature | 220 | 230 | TPU requires higher nozzle temp |
+| Filament | Bed temperature | 45 | 35 | Lower bed temp for TPU adhesion control |
 | Strength | Sparse infill density | 15% | 0% | Hollow interior — no internal lattice, just wall perimeters |
-| Strength | Sparse infill pattern | Grid | Gyroid | Retained; no effect at 0% density |
+| Strength | Sparse infill pattern | Grid | gyroid | Retained; no effect at 0% density |
 | Strength | Wall loops | 2 | 3 | Walls are the only structure at 0% infill — 3 loops = 1.26mm |
 | Strength | Top shell layers | 5 | 3 | Thinner cap = more flex at top |
 | Strength | Bottom shell layers | 3 | 2 | Thinner base = more flex at bottom |
@@ -213,7 +215,7 @@
 | Quality | Avoid crossing wall | ☐ | ☑ | Prevents TPU stringing |
 | Speed | Outer wall | ~150 mm/s | 40 mm/s | TPU quality degrades fast above 40 |
 | Speed | Inner wall | ~200 mm/s | 60 mm/s | TPU quality |
-| Speed | Initial layer | ~30 mm/s | 20 mm/s | Better bed adhesion |
-| Others | Brim type | None | Outer | TPU needs adhesion help |
+| Speed | Initial layer speed | ~30 mm/s | 20 mm/s | Better bed adhesion |
+| Others | Brim type | None | outer_only | TPU needs adhesion help |
 | Others | Brim width | 5 mm | 8 mm | TPU lifts easily |
 | Others | Skirt loops | 2 | 3 | Extra priming for TPU flow |
