@@ -667,7 +667,7 @@ def build_3mf(
         md_path = plate["settings_md"]
 
         log.info(f"Plate {plate_num} ({material}): parsing {md_path}")
-        md_rows = parse_settings_markdown(md_path)
+        md_rows = parse_settings_markdown(md_path) if md_path else []
 
         # Prepend preset rows so explicit settings override preset values
         preset_rows = plate.get("preset_rows", [])

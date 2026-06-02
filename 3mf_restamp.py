@@ -133,7 +133,7 @@ def apply_filament_settings(
 # ---------------------------------------------------------------------------
 def restamp_3mf(
     input_path: str,
-    settings_md: str,
+    settings_md: str | None,
     output_path: str,
     preset_rows: list[dict] | None = None,
 ) -> tuple[list[dict], dict, dict]:
@@ -172,9 +172,12 @@ def restamp_3mf(
             log.error("project_settings.config is not a JSON dict")
             sys.exit(1)
 
-        # Parse the markdown
-        md_rows = parse_settings_markdown(settings_md)
-        log.info(f"Parsed {len(md_rows)} rows from settings markdown")
+        # Parse the markdown (optional when preset-only)
+        if settings_md:
+            md_rows = parse_settings_markdown(settings_md)
+            log.info(f"Parsed {len(md_rows)} rows from settings markdown")
+        else:
+            md_rows = []
 
         # Prepend preset rows so explicit settings override preset
         if preset_rows:
@@ -389,7 +392,7 @@ def parse_args(argv=None):
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--input", required=True, help="Source .3mf file to modify.")
-    parser.add_argument("--settings", required=True, help="Markdown settings file.")
+    parser.add_argument("--settings", default=None, help="Markdown settings file (optional when --preset is used).")
     parser.add_argument(
         "--output",
         default=None,
@@ -423,8 +426,12 @@ def main(argv=None):
         log.error(f"Input file not found: {input_path}")
         sys.exit(1)
 
-    settings_path = Path(args.settings)
-    if not settings_path.exists():
+    if not args.settings and not args.preset:
+        log.error("At least one of --settings or --preset is required")
+        sys.exit(1)
+
+    settings_path = Path(args.settings) if args.settings else None
+    if settings_path and not settings_path.exists():
         log.error(f"Settings file not found: {settings_path}")
         sys.exit(1)
 
@@ -439,7 +446,10 @@ def main(argv=None):
         preset_rows = load_preset(args.preset)
 
     report_rows, src_settings, updated_settings = restamp_3mf(
-        str(input_path), str(settings_path), str(output_path), preset_rows=preset_rows
+        str(input_path),
+        str(settings_path) if settings_path else None,
+        str(output_path),
+        preset_rows=preset_rows,
     )
     print_report(report_rows, str(input_path), str(output_path))
 
