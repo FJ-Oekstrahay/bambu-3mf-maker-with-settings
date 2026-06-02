@@ -22,6 +22,7 @@ import sys
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 # Import shared logic from the sibling module
 sys.path.insert(0, str(Path(__file__).parent))
@@ -37,6 +38,33 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Per-object metadata keys that are safe to keep in model_settings.config.
+# All others are process overrides that cause Studio to show "Objects" view.
+# ---------------------------------------------------------------------------
+SAFE_OBJECT_METADATA_KEYS = {'name', 'extruder'}  # None (no key attr) is also safe (face_count)
+
+
+def strip_object_process_overrides(model_settings_bytes: bytes) -> tuple[bytes, int]:
+    """Remove per-object process overrides from model_settings.config XML.
+    Returns (cleaned_bytes, count_stripped)."""
+    root = ET.fromstring(model_settings_bytes)
+    stripped = 0
+    for obj in root.findall('object'):
+        to_remove = [
+            m for m in obj.findall('metadata')
+            if m.get('key') not in SAFE_OBJECT_METADATA_KEYS and m.get('key') is not None
+        ]
+        for m in to_remove:
+            obj.remove(m)
+            stripped += 1
+    if stripped:
+        ET.indent(root, space='  ')
+    xml_str = ET.tostring(root, encoding='unicode', xml_declaration=False)
+    result = ('<?xml version="1.0" encoding="UTF-8"?>\n' + xml_str).encode('utf-8')
+    return result, stripped
+
 
 # ---------------------------------------------------------------------------
 # Filament-tab settings — applied to project_settings.config directly.
@@ -172,6 +200,21 @@ def restamp_3mf(
             log.error("project_settings.config is not a JSON dict")
             sys.exit(1)
 
+        # Read and clean model_settings.config (strip per-object process overrides)
+        model_settings_name = next(
+            (n for n in compression_map if n.endswith('model_settings.config')), None
+        )
+        cleaned_model_settings_bytes = None
+        if model_settings_name:
+            raw_model_settings_bytes = src_zip.read(model_settings_name)
+            cleaned_model_settings_bytes, n_stripped = strip_object_process_overrides(
+                raw_model_settings_bytes
+            )
+            if n_stripped:
+                log.info(f"Stripped {n_stripped} per-object process override(s) from {model_settings_name}")
+            else:
+                log.info(f"No per-object process overrides found in {model_settings_name}")
+
         # Parse the markdown (optional when preset-only)
         if settings_md:
             md_rows = parse_settings_markdown(settings_md)
@@ -199,6 +242,15 @@ def restamp_3mf(
 
         all_report = process_report + filament_report
 
+        # Force default_print_profile to "Custom" so Studio displays our values
+        # instead of looking up a named system profile.
+        if updated_settings.get('default_print_profile') != 'Custom':
+            log.info(
+                f"Setting default_print_profile → Custom "
+                f"(was: {updated_settings.get('default_print_profile')})"
+            )
+            updated_settings['default_print_profile'] = 'Custom'
+
         # Validate applied settings
         validation_warnings = validate_settings(updated_settings, "restamp")
         for w in validation_warnings:
@@ -219,6 +271,11 @@ def restamp_3mf(
                     zi = zipfile.ZipInfo(fname)
                     zi.compress_type = compression_map.get(fname, zipfile.ZIP_DEFLATED)
                     out_zip.writestr(zi, updated_config_bytes)
+                elif fname == model_settings_name and cleaned_model_settings_bytes is not None:
+                    # Replace with cleaned model_settings (per-object overrides stripped)
+                    zi = zipfile.ZipInfo(fname)
+                    zi.compress_type = compression_map.get(fname, zipfile.ZIP_DEFLATED)
+                    out_zip.writestr(zi, cleaned_model_settings_bytes)
                 else:
                     # Copy byte-for-byte with original compression
                     zi = zipfile.ZipInfo(fname)
