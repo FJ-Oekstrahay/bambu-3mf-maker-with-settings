@@ -122,6 +122,11 @@ SETTING_KEY_MAP = {
     # Temperature — scalar spec value written as 6-element array (one per filament slot)
     "Nozzle temperature": ("nozzle_temperature", "array"),
     "Bed temperature": ("textured_plate_temp", "array"),
+    # Fan speed
+    "Fan speed (general)": ("fan_max_speed", "array"),
+    "Fan speed": ("fan_max_speed", "array"),
+    "Fan max speed": ("fan_max_speed", "array"),
+    "Fan min speed": ("fan_min_speed", "array"),
     # Abbreviated aliases used in summary tables
     "Infill density": ("sparse_infill_density", "string"),
     "Top shell layers": ("top_shell_layers", "string"),
