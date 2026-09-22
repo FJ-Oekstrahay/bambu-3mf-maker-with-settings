@@ -1019,7 +1019,10 @@ if __name__ == "__main__":
     output_dir = Path(result["output_path"]).parent
     report_path = str(output_dir / "stl_to_3mf_verification.txt")
 
-    # Write combined report (will be overwritten per run; caller does both)
-    all_passed = all(p for _, p, _ in result["checks"])
+    all_passed = write_verification_report(
+        output_path=result["output_path"],
+        results=[result],
+        report_path=report_path,
+    )
     if not all_passed:
         sys.exit(1)
